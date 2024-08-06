@@ -1,0 +1,34 @@
+{
+  "name": "initia-mobile-wallet",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "common": "pnpm --filter common",
+    "app": "pnpm --filter web-app"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18.16.1"
+  },
+  "devDependencies": {
+    "@initia/eslint-config-react-app": "^0.3.0",
+    "eslint": "^8.57.0",
+    "lint-staged": "^15.2.7",
+    "prettier": "^3.3.3",
+    "simple-git-hooks": "^2.11.1"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm lint-staged --concurrent false"
+  },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown",
+    "*.{ts,tsx}": "eslint --max-warnings=0"
+  }
+}

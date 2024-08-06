@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">initia</string>
+    <string name="custom_url_scheme">initiawallet</string>
+</resources>

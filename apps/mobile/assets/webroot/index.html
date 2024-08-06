@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+    <link rel="stylesheet" href="https://assets.initia.xyz/fonts/VisbyCF.css" />
+    <title>Initia Wallet</title>
+    <!-- <script type="module" crossorigin src="/index.js"></script> -->
+    <!-- <link rel="stylesheet" crossorigin href="/assets/index-DOqPal4Y.css"> -->
+    <style>
+      body {
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    INITIA -
+
+    <div id="address"></div>
+    <button id="onboard">Onboard</button>
+    <button id="view">View</button>
+    <button id="disconnect">Disconnect</button>
+    <button id="send">Send</button>
+    <div id="tx-hash"></div>
+    <button id="message-to-rn">
+      Send a message to the React Native layer
+    </button>
+    <script>
+      window.onNativeMessage = function (message) {
+        // eslint-disable-next-line no-alert
+        alert(`Got message from React Native layer: ${message}`);
+      };
+
+      document.getElementById('message-to-rn').addEventListener('click', function () {
+        // .ReactNativeWebView is automatically attached to the `window` by the host
+        // WebView component, and it has .postMessage() method allowing to send text
+        // messages to the React Native layer.
+        if (window.ReactNativeWebView) {
+          const message = 'Hello from the WebView content!';
+          window.ReactNativeWebView.postMessage(message);
+        }
+      });
+
+
+      // if (window.ReactNativeWebView.injectedObjectJson()) {
+      //   const accounts = JSON.parse(window.ReactNativeWebView.injectedObjectJson()).accounts;
+      //   console.log("in webveiw - account ", accounts)
+      //   console.log("in webveiw", [{ ...accounts, pubkey: new Uint8Array( Object.keys(accounts.pubkey).map((key) => accounts.pubkey[key])) }])
+      //   const signer = {
+      //     getAccounts: async () => [{ ...accounts, pubkey: new Uint8Array( Object.keys(accounts.pubkey).map((key) => accounts.pubkey[key])) }]
+      //   }
+      //   window.initiaWebView = {
+      //     getOfflineSigner: () => signer
+      //   }
+      // }
+
+      let widget;
+
+      function loadScript(src) {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement("script")
+          script.src = src
+          script.type = "module"
+          script.async = true
+          script.defer = true
+          script.onload = () => {
+            resolve()
+          }
+          script.onerror = () => {
+            reject(new Error(`Failed to load script: ${src}`))
+          }
+          document.head.appendChild(script)
+        })
+      }
+
+      async function fetchLatestVersion(packageName) {
+        const res = await fetch(`https://registry.npmjs.org/${packageName}/latest`)
+        const { version } = await res.json()
+        return version
+      }
+
+      const layer = {
+        chain_id: "initiation-1",
+        chain_name: "Initia testnet",
+        apis: {
+          rpc: [{ address: "https://b545809c-5562-4e60-b5a1-22e83df57748.initiation-1.mesa-rpc.ue1-prod.newmetric.xyz", }],
+          rest: [{ address: "https://b545809c-5562-4e60-b5a1-22e83df57748.initiation-1.mesa-rest.ue1-prod.newmetric.xyz", }],
+        },
+        fees: {
+          fee_tokens: [{ denom: "uinit", fixed_min_gas_price: 0.15 }],
+        },
+        bech32_prefix: "init",
+      }
+
+
+      const initializeWalletWidget = async () => {
+        const version = (await fetchLatestVersion("@initia/wallet-widget"))
+        const src = `https://cdn.jsdelivr.net/npm/@initia/wallet-widget@${version}/dist/index.js`
+        await loadScript(src)
+        widget = window.createWalletWidget({
+          registry: "https://registry.testnet.initia.xyz",
+          chainId: "initiation-1",
+        })
+
+        const { address$, onboard, view, disconnect, requestTx } = widget
+
+        document.getElementById("address").textContent = address$._value
+
+        async function send() {
+          const messages = [
+            {
+              typeUrl: "/cosmos.bank.v1beta1.MsgSend",
+              value: {
+                fromAddress: address$.value,
+                toAddress: address$.value,
+                amount: [{ amount: "1000000", denom: "uinit" }],
+              },
+            },
+          ]
+
+          document.getElementById("tx-hash").textContent = "Loading..."
+          const transactionHash = await requestTx({ messages })
+          document.getElementById("tx-hash").textContent = transactionHash
+        }
+
+        document.getElementById("onboard").addEventListener("click", onboard)
+        document.getElementById("view").addEventListener("click", view)
+        document.getElementById("disconnect").addEventListener("click", disconnect)
+        document.getElementById("send").addEventListener("click", send)
+
+      }
+
+      initializeWalletWidget()
+
+    </script>
+  </body>
+</html>
