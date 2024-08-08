@@ -1,27 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Linking, Platform, SafeAreaView, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import { Colors } from 'react-native/Libraries/NewAppScreen';
+import { Platform, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { install } from 'react-native-quick-crypto';
 import { copyFileAssets, readFile, readFileAssets, unlink } from '@dr.pogodin/react-native-fs';
 import Server, { STATES, resolveAssetsPath } from '@dr.pogodin/react-native-static-server';
 import { generateWallet } from '../scripts/wallet';
 import { MNEMONIC } from '@env';
+import { useInjectedSourceCode } from './Browser';
+import { injected } from '../scripts/injectedJS';
+import type { AccountData, DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 
 install();
 
 export default function Wallet() {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
-  };
-
   const [origin, setOrigin] = useState<string>('');
-  const [accounts, setAccounts] = useState();
+  const [wallet, setWallet] = useState<DirectSecp256k1Wallet>();
+  const [accounts, setAccounts] = useState<AccountData>();
+  const sourceCode = useInjectedSourceCode();
 
   useEffect(() => {
     const fileDir = resolveAssetsPath('webroot');
@@ -98,11 +93,32 @@ export default function Wallet() {
   useEffect(() => {
     (async () => {
       const w = await generateWallet(MNEMONIC);
+      setWallet(w)
       const [a] = await w.getAccounts();
       console.log("in wallet", a)
       setAccounts(a);
     })()
   }, [])
+
+  const onMessage = async (event: any) => {
+    try {
+      const message = JSON.parse(event.nativeEvent.data);
+      const { signerAddress, signDoc } = message.params
+      const parsedSignDoc = {
+        chainId: signDoc.chainId,
+        bodyBytes: new Uint8Array(Object.keys(signDoc.bodyBytes).map((key) => signDoc.bodyBytes[key])),
+        authInfoBytes: new Uint8Array(Object.keys(signDoc.authInfoBytes).map((key) => signDoc.authInfoBytes[key])),
+        accountNumber: BigInt(signDoc.accountNumber),
+      }
+
+      const result = await wallet?.signDirect(signerAddress, parsedSignDoc)
+      webView.current?.postMessage(JSON.stringify(result, (key, value) =>
+        typeof value === "bigint" ? value.toString() + "n" : value
+      ));
+    } catch (error) {
+      webView.current?.postMessage(JSON.stringify(error));
+    }
+  }
 
   return (
     <View style={styles.webview}>
@@ -111,26 +127,12 @@ export default function Wallet() {
         source={origin ? { uri: origin } : { html: '' }}
         javaScriptEnabled
         allowsInlineMediaPlayback
-        injectedJavaScript={`
-          if (window.ReactNativeWebView.injectedObjectJson()) {
-            const accounts = JSON.parse(window.ReactNativeWebView.injectedObjectJson()).accounts;
-            console.log(\"in webveiw - account \", accounts)
-            console.log(\"in webveiw\", [{ ...accounts, pubkey: new Uint8Array( Object.keys(accounts.pubkey).map((key) => accounts.pubkey[key])) }])
-            const signer = {
-              getAccounts: async () => [{ ...accounts, pubkey: new Uint8Array( Object.keys(accounts.pubkey).map((key) => accounts.pubkey[key])) }]
-            }
-            window.initiaWebView = {
-              getOfflineSigner: () => signer
-            }
-          }
-        `}
+        injectedJavaScript={injected}
         injectedJavaScriptObject={{ accounts }}
+        injectedJavaScriptBeforeContentLoaded={sourceCode}
         webviewDebuggingEnabled
         cacheMode="LOAD_NO_CACHE"
-        onMessage={(event: any) => {
-          const message = event.nativeEvent.data;
-          Alert.alert('Got a message from the WebView content', message);
-        }}
+        onMessage={onMessage}
       />
     </View>
   );

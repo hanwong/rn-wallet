@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { install } from 'react-native-quick-crypto';
 import type { DirectSecp256k1Wallet, AccountData } from "@cosmjs/proto-signing"
@@ -51,14 +51,11 @@ export default function Browser() {
         accountNumber: BigInt(signDoc.accountNumber),
       }
 
-      console.log("message.params", message.params)
       const result = await wallet?.signDirect(signerAddress, parsedSignDoc)
-      console.log("signDirect result", result)
       webView.current?.postMessage(JSON.stringify(result, (key, value) =>
         typeof value === "bigint" ? value.toString() + "n" : value
       ));
     } catch (error) {
-      console.log("error", error)
       webView.current?.postMessage(JSON.stringify(error));
     }
   }
@@ -67,7 +64,7 @@ export default function Browser() {
     <View style={styles.webview}>
       <WebView
         ref={webView}
-        source={{ uri: "http://samuels.local:5100" }}
+        source={{ uri: "https://app.testnet.initia.xyz" }}
         javaScriptEnabled
         allowsInlineMediaPlayback
         injectedJavaScript={injected}
